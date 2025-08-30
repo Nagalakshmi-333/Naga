@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>StudyMate — Ask your PDFs</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --accent:#2563eb; --bg:#f7fafc; --card:#ffffff; --muted:#6b7280;
+      --success:#16a34a; --danger:#dc2626;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:#0f172a}
+    .wrap{max-width:1100px;margin:24px auto;padding:18px}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    h1{font-size:1.6rem;margin:0}
+    .lead{color:var(--muted);margin-top:4px;font-size:0.95rem}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px;margin-top:18px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 20px rgba(2,6,23,0.06)}
+    .drop{border:2px dashed #dbeafe;border-radius:10px;padding:18px;text-align:center;color:var(--muted);cursor:pointer}
+    input[type="file"]{display:none}
+    .file-list{margin-top:12px}
+    .file-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:#f1f5f9;margin-bottom:8px}
+    .btn{background:var(--accent);color:#fff;border:none;padding:10px 12px;border-radius:8px;cursor:pointer}
+    .btn.secondary{background:#eef2ff;color:var(--accent);border:1px solid #dbeafe}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .small{font-size:0.92rem;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .spinner{display:inline-block;width:16px;height:16px;border:3px solid rgba(0,0,0,0.08);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .qa-turn{border-left:4px solid #eef2ff;padding:10px;margin-bottom:12px;border-radius:8px;background:#fbfdff}
+    .citation{font-size:0.9rem;color:var(--muted);margin-top:6px}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .footer{margin-top:18px;color:var(--muted);font-size:0.9rem}
+    textarea, input[type="text"]{width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;font-size:1rem}
+    .right-col{display:flex;flex-direction:column;gap:12px}
+    .index-info{font-size:0.95rem;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div style="font-size:1.8rem">📚</div>
+      <div>
+        <h1>StudyMate</h1>
+        <div class="lead">Upload PDFs and ask questions in plain English. Answers are sourced from your documents.</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Left: main -->
+      <div class="card">
+        <h2 style="margin-top:0">Ask a question</h2>
+
+        <div style="margin-bottom:8px">
+          <input id="query" type="text" placeholder="e.g. Summarize the core idea of chapter 3" />
+        </div>
+
+        <div class="controls">
+          <button id="askBtn" class="btn">Ask</button>
+          <div id="askBusy" style="display:none" class="muted"><span class="spinner"></span> Thinking...</div>
+          <div id="askMsg" class="small muted"></div>
+        </div>
+
+        <div id="answerSection" style="display:none;margin-top:12px">
+          <div style="font-weight:600;margin-bottom:6px">✅ Answer</div>
+          <div id="answerText" style="white-space:pre-wrap;padding:12px;border-radius:8px;background:#fbfdff;border:1px solid #eef2ff"></div>
+
+          <div style="margin-top:10px">
+            <div style="font-weight:600">📎 Sources</div>
+            <div id="citationsArea"></div>
+          </div>
+        </div>
+
+        <hr style="margin:18px 0">
+
+        <h3 style="margin:0 0 8px 0">Conversation</h3>
+        <div id="conversation" style="max-height:360px;overflow:auto;padding-right:8px"></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <button id="exportCSV" class="btn secondary">Export CSV</button>
+          <div id="exportMsg" class="small muted"></div>
+        </div>
+
+        <div class="footer">
+          Tip: Upload documents first (Upload & Index), then ask questions. If you get "No documents indexed", upload PDFs again and wait for the "Indexed" confirmation.
+        </div>
+      </div>
+
+      <!-- Right: upload -->
+      <div class="right-col">
+        <div class="card">
+          <h3 style="margin-top:0">Upload & Index PDFs</h3>
+          <label id="dropZone" class="drop">Click or drop PDFs here</label>
+          <input id="fileInput" type="file" accept="application/pdf" multiple />
+
+          <div class="file-list" id="fileList"></div>
+
+          <div class="controls" style="margin-top:10px">
+            <button id="uploadBtn" class="btn">Upload & Index</button>
+            <button id="clearBtn" class="btn secondary">Clear</button>
+          </div>
+
+          <div style="margin-top:10px">
+            <div id="uploadStatus" class="small muted"></div>
+            <div id="uploadError" style="color:var(--danger);margin-top:6px"></div>
+            <div id="uploadSuccess" style="color:var(--success);margin-top:6px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4 style="margin-top:0">Index info</h4>
+          <div class="index-info" id="indexInfo">No index yet.</div>
+
+          <div style="margin-top:12px">
+            <label class="small muted">Top-K (server-side may ignore)</label>
+            <input id="topk" type="text" placeholder="5" value="5" />
+          </div>
+
+          <div style="margin-top:12px">
+            <label class="small muted">Context size (chars)</label>
+            <input id="ctxchars" type="text" placeholder="2000" value="2000" />
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Frontend logic - works with backend endpoints /upload and /ask
+  const fileInput = document.getElementById('fileInput');
+  const dropZone = document.getElementById('dropZone');
+  const fileList = document.getElementById('fileList');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadError = document.getElementById('uploadError');
+  const uploadSuccess = document.getElementById('uploadSuccess');
+  const indexInfo = document.getElementById('indexInfo');
+  const askBtn = document.getElementById('askBtn');
+  const askBusy = document.getElementById('askBusy');
+  const askMsg = document.getElementById('askMsg');
+  const queryInput = document.getElementById('query');
+  const answerSection = document.getElementById('answerSection');
+  const answerText = document.getElementById('answerText');
+  const citationsArea = document.getElementById('citationsArea');
+  const conversationDiv = document.getElementById('conversation');
+  const exportCSV = document.getElementById('exportCSV');
+  const exportMsg = document.getElementById('exportMsg');
+
+  let selectedFiles = [];
+  let conversation = [];
+
+  // drag & drop wiring
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', (e)=>{ e.preventDefault(); dropZone.style.borderColor = '#93c5fd'; });
+  dropZone.addEventListener('dragleave', ()=>{ dropZone.style.borderColor = '#dbeafe'; });
+  dropZone.addEventListener('drop', (e)=>{ e.preventDefault(); dropZone.style.borderColor = '#dbeafe'; handleFiles(e.dataTransfer.files); });
+
+  fileInput.addEventListener('change', (e)=> handleFiles(e.target.files));
+
+  function handleFiles(files) {
+    uploadError.innerText = '';
+    uploadSuccess.innerText = '';
+    for (const f of files) {
+      if (f.type !== 'application/pdf') continue;
+      if (!selectedFiles.some(x => x.name === f.name && x.size === f.size)) selectedFiles.push(f);
+    }
+    renderFileList();
+  }
+
+  function renderFileList(){
+    fileList.innerHTML = '';
+    if (selectedFiles.length === 0) {
+      fileList.innerHTML = '<div class="small muted">No files selected</div>';
+      return;
+    }
+    selectedFiles.forEach((f, i) => {
+      const div = document.createElement('div');
+      div.className = 'file-item';
+      div.innerHTML = `<div><strong>${escapeHtml(f.name)}</strong><div class="muted small">${(f.size/1024).toFixed(1)} KB</div></div>
+                       <div><button data-i="${i}" class="btn secondary">Remove</button></div>`;
+      fileList.appendChild(div);
+    });
+    fileList.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        const idx = Number(ev.currentTarget.dataset.i);
+        selectedFiles.splice(idx, 1);
+        renderFileList();
+      });
+    });
+  }
+
+  clearBtn.addEventListener('click', () => {
+    selectedFiles = [];
+    renderFileList();
+    uploadStatus.innerText = '';
+    uploadError.innerText = '';
+    uploadSuccess.innerText = '';
+    indexInfo.innerText = 'No index yet.';
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    uploadError.innerText = '';
+    uploadSuccess.innerText = '';
+    if (selectedFiles.length === 0) { uploadError.innerText = 'Please select PDF files first.'; return; }
+    uploadBtn.disabled = true;
+    uploadStatus.innerHTML = '<span class="spinner"></span> Uploading & indexing...';
+    const fd = new FormData();
+    selectedFiles.forEach(f => fd.append('files', f, f.name));
+    try {
+      const resp = await fetch('/upload', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || 'Upload failed');
+      }
+      const data = await resp.json();
+      if (data.status === 'success') {
+        uploadSuccess.innerText = `Indexed ${data.chunks} chunks.`;
+        indexInfo.innerText = `Indexed chunks: ${data.chunks}`;
+      } else {
+        uploadError.innerText = data.message || 'Upload failed';
+      }
+    } catch (err) {
+      console.error(err);
+      uploadError.innerText = 'Upload failed — check server logs.';
+    } finally {
+      uploadBtn.disabled = false;
+      uploadStatus.innerText = '';
+    }
+  });
+
+  askBtn.addEventListener('click', async () => {
+    const q = queryInput.value.trim();
+    askMsg.innerText = '';
+    if (!q) { askMsg.innerText = 'Please type a question.'; return; }
+    askBtn.disabled = true;
+    askBusy.style.display = 'inline-block';
+    answerSection.style.display = 'none';
+    try {
+      const topk = Number(document.getElementById('topk').value || 5);
+      const ctxchars = Number(document.getElementById('ctxchars').value || 2000);
+      // We send a simple JSON body. Backend may choose to accept topk/context via headers/body if implemented.
+      const resp = await fetch('/ask', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ query: q, top_k: topk, ctx_chars: ctxchars })
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || 'Server error while asking');
+      }
+      const data = await resp.json();
+      const ans = data.answer || 'No answer returned.';
+      const cites = data.citations || [];
+      answerText.innerText = ans;
+      citationsArea.innerHTML = '';
+      if (cites.length > 0) {
+        cites.forEach((c, i) => {
+          const el = document.createElement('div');
+          el.className = 'citation';
+          el.innerHTML = `<strong>${i+1}.</strong> ${escapeHtml(c.file)} — p.${escapeHtml(String(c.page))}`;
+          citationsArea.appendChild(el);
+        });
+      } else {
+        citationsArea.innerHTML = '<div class="small muted">No citations returned.</div>';
+      }
+      answerSection.style.display = 'block';
+
+      // Save conversation locally
+      conversation.push({ q, a: ans, citations: cites, ts: new Date().toISOString() });
+      renderConversation();
+    } catch (err) {
+      console.error(err);
+      askMsg.innerText = 'Request failed — server may not be ready or index is missing.';
+    } finally {
+      askBtn.disabled = false;
+      askBusy.style.display = 'none';
+    }
+  });
+
+  function renderConversation() {
+    conversationDiv.innerHTML = '';
+    if (!conversation.length) { conversationDiv.innerHTML = '<div class="small muted">No Q&A yet.</div>'; return; }
+    // newest first
+    const items = conversation.slice().reverse();
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'qa-turn';
+      div.innerHTML = `<div style="font-weight:600">Q: ${escapeHtml(item.q)}</div>
+                       <div style="margin-top:6px">A: ${escapeHtml(item.a)}</div>
+                       <div class="small muted" style="margin-top:8px">${item.citations && item.citations.length ? 'Sources: ' + item.citations.map(c => `${escapeHtml(c.file)} p.${escapeHtml(String(c.page))}`).join(' | ') : ''}</div>`;
+      conversationDiv.appendChild(div);
+    });
+  }
+
+  exportCSV.addEventListener('click', () => {
+    if (!conversation.length) { exportMsg.innerText = 'No conversation to export.'; setTimeout(()=>exportMsg.innerText='','2500'); return; }
+    let csv = 'question,answer,citations\\n';
+    conversation.forEach(turn => {
+      const cites = turn.citations && turn.citations.length ? turn.citations.map(c => `${c.file} p.${c.page}`).join(' | ') : '';
+      csv += `"${escapeCsv(turn.q)}","${escapeCsv(turn.a)}","${escapeCsv(cites)}"\\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    a.download = `studymate_conversation_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'_')}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    exportMsg.innerText = 'Downloaded CSV';
+    setTimeout(()=>exportMsg.innerText='','2500');
+  });
+
+  // small helpers
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m])); }
+  function escapeCsv(s){ return String(s).replace(/"/g,'""'); }
+
+  // initial render
+  renderFileList();
+
+</script>
+</body>
+</html>
